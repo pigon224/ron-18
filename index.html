@@ -97,10 +97,15 @@
             align-items: flex-end;
             justify-content: space-between;
             padding: 15px;
+            pointer-events: none; /* This allows clicks to pass through to the image */
         }
 
         .photo:hover .photo-overlay {
             opacity: 1;
+        }
+
+        .photo-overlay .like-btn {
+            pointer-events: auto; /* Re-enable pointer events for the like button only */
         }
 
         .like-btn {
@@ -378,6 +383,12 @@
             height: 100%;
             background: rgba(0, 0, 0, 0.9);
             cursor: pointer;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
 
         .lightbox img {
@@ -388,6 +399,8 @@
             max-width: 90%;
             max-height: 90%;
             border-radius: 10px;
+            cursor: default;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
         }
 
         .close {
@@ -397,6 +410,20 @@
             color: white;
             font-size: 40px;
             cursor: pointer;
+            z-index: 1001;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .close:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
         }
 
         @media (max-width: 768px) {
@@ -494,8 +521,8 @@
 
     <!-- Lightbox -->
     <div class="lightbox" id="lightbox" onclick="closeLightbox()">
-        <span class="close">&times;</span>
-        <img id="lightbox-img" src="" alt="">
+        <span class="close" onclick="event.stopPropagation(); closeLightbox();">&times;</span>
+        <img id="lightbox-img" src="" alt="" onclick="event.stopPropagation();">
     </div>
 
     <script>
@@ -538,33 +565,45 @@
                 photoDiv.className = 'photo';
                 photoDiv.setAttribute('data-index', index);
                 
-                photoDiv.innerHTML = `
-                    <div class="photo-placeholder" onclick="openLightbox('${photoSrc}')">
-                        📷 תמונה ${index + 1}<br>
-                        <small>לחץ להגדלה</small>
-                    </div>
-                    <div class="photo-overlay">
-                        <div class="photo-info">תמונה ${index + 1}</div>
-                        <button class="like-btn" onclick="toggleLike(event, ${index})" data-liked="false">♡</button>
-                    </div>
+                // Create image element
+                const img = document.createElement('img');
+                img.src = photoSrc;
+                img.alt = `תמונה ${index + 1}`;
+                img.style.cssText = `
+                    width: 100%;
+                    height: 250px;
+                    object-fit: cover;
+                    cursor: pointer;
+                    transition: transform 0.3s ease;
                 `;
                 
-                // Try to load actual image
-                const img = new Image();
-                img.onload = function() {
-                    photoDiv.innerHTML = `
-                        <img src="${photoSrc}" alt="תמונה ${index + 1}" onclick="openLightbox('${photoSrc}')">
-                        <div class="photo-overlay">
-                            <div class="photo-info">תמונה ${index + 1}</div>
-                            <button class="like-btn" onclick="toggleLike(event, ${index})" data-liked="false">♡</button>
-                        </div>
-                    `;
-                };
-                img.onerror = function() {
-                    // Keep placeholder if image doesn't exist
-                };
-                img.src = photoSrc;
+                // Add click event for lightbox
+                img.addEventListener('click', function() {
+                    openLightbox(photoSrc);
+                });
                 
+                // Add hover effect
+                img.addEventListener('mouseenter', function() {
+                    this.style.transform = 'scale(1.05)';
+                });
+                
+                img.addEventListener('mouseleave', function() {
+                    this.style.transform = 'scale(1)';
+                });
+                
+                // Create overlay for like button
+                const overlay = document.createElement('div');
+                overlay.className = 'photo-overlay';
+                overlay.innerHTML = `
+                    <div class="photo-info">תמונה ${index + 1}</div>
+                    <button class="like-btn" onclick="toggleLike(event, ${index})" data-liked="false">♡</button>
+                `;
+                
+                // Add elements to photo container
+                photoDiv.appendChild(img);
+                photoDiv.appendChild(overlay);
+                
+                // Add photo to gallery
                 gallery.appendChild(photoDiv);
             });
         }
@@ -609,12 +648,39 @@
         }
 
         function openLightbox(src) {
-            document.getElementById('lightbox').style.display = 'block';
-            document.getElementById('lightbox-img').src = src;
+            console.log('Opening lightbox with:', src);
+            
+            // Get lightbox elements
+            const lightbox = document.getElementById('lightbox');
+            const lightboxImg = document.getElementById('lightbox-img');
+            
+            if (lightbox && lightboxImg) {
+                // Set the image source
+                lightboxImg.src = src;
+                lightboxImg.onload = function() {
+                    // Show lightbox after image loads
+                    lightbox.style.display = 'block';
+                    document.body.style.overflow = 'hidden'; // Prevent scrolling
+                    console.log('Lightbox opened successfully');
+                };
+                lightboxImg.onerror = function() {
+                    console.error('Failed to load image:', src);
+                    alert('שגיאה בטעינת התמונה');
+                };
+            } else {
+                console.error('Lightbox elements not found');
+                alert('שגיאה בפתיחת התמונה');
+            }
         }
 
         function closeLightbox() {
-            document.getElementById('lightbox').style.display = 'none';
+            console.log('Closing lightbox');
+            const lightbox = document.getElementById('lightbox');
+            if (lightbox) {
+                lightbox.style.display = 'none';
+                document.body.style.overflow = 'auto'; // Restore scrolling
+                console.log('Lightbox closed successfully');
+            }
         }
 
         function celebrate() {
@@ -814,13 +880,7 @@
         // Countdown timer
         function updateCountdown() {
             const now = new Date();
-            const currentYear = now.getFullYear();
-            let nextBirthday = new Date(currentYear, 7, 12); // August 12 (month is 0-indexed)
-            
-            // If birthday has passed this year, set to next year
-            if (now > nextBirthday) {
-                nextBirthday = new Date(currentYear + 1, 7, 12);
-            }
+            const nextBirthday = new Date(2026, 7, 13); // August 13, 2026 (month is 0-indexed)
             
             const timeDiff = nextBirthday - now;
             
